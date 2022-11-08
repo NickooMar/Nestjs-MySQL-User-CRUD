@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { User } from './user.entity';
 //DTO
 import { CreateUserDTO } from './dto/createUser.dto';
+import { updateUserDTO } from './dto/updateUser.dto';
 
 @Injectable()
 export class UsersService {
@@ -27,5 +28,9 @@ export class UsersService {
 
   deleteUser(id: number) {
     return this.userRepository.delete({ id });
+  }
+
+  updateUser(id: number, user: updateUserDTO) {
+    return this.userRepository.update({ id }, user);
   }
 }
