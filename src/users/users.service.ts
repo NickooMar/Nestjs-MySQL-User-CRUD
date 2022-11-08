@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -6,31 +6,81 @@ import { User } from './user.entity';
 //DTO
 import { CreateUserDTO } from './dto/createUser.dto';
 import { updateUserDTO } from './dto/updateUser.dto';
+import { CreateProfileDTO } from './dto/createProfile.dto';
+import { Profile } from './profile.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
+    @InjectRepository(Profile) private profileRepository: Repository<Profile>,
   ) {}
 
-  createUser(user: CreateUserDTO) {
+  async createUser(user: CreateUserDTO) {
+    const userFound = await this.userRepository.findOne({
+      where: { username: user.username },
+    });
+
+    if (userFound) {
+      return new HttpException('User already exist', HttpStatus.CONFLICT);
+    }
+
     const newUser = this.userRepository.create(user);
     return this.userRepository.save(newUser);
   }
 
   getUsers() {
-    return this.userRepository.find();
+    return this.userRepository.find({ relations: ['posts'] });
   }
 
-  getUser(id: number) {
-    return this.userRepository.findOne({ where: { id: id } });
+  async getUser(id: number) {
+    const userFound = await this.userRepository.findOne({
+      where: { id: id },
+      relations: ['posts', 'profile'],
+    });
+
+    if (!userFound) {
+      return new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    return userFound;
   }
 
-  deleteUser(id: number) {
-    return this.userRepository.delete({ id });
+  async deleteUser(id: number) {
+    const result = await this.userRepository.delete({ id });
+
+    if (result.affected === 0) {
+      return new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    return result;
   }
 
-  updateUser(id: number, user: updateUserDTO) {
-    return this.userRepository.update({ id }, user);
+  async updateUser(id: number, user: updateUserDTO) {
+    const userFound = await this.userRepository.findOne({ where: { id } });
+
+    if (!userFound) {
+      return new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+
+    const updatedUser = Object.assign(userFound, user);
+
+    return this.userRepository.save(updatedUser);
+  }
+
+  async createProfile(id: number, profile: CreateProfileDTO) {
+    const userFound = await this.userRepository.findOne({ where: { id } });
+
+    if (!userFound) {
+      return new HttpException('User Not Found', HttpStatus.NOT_FOUND);
+    }
+
+    const newProfile = this.profileRepository.create(profile);
+
+    const savedProfile = await this.profileRepository.save(newProfile);
+
+    userFound.profile = savedProfile;
+
+    return this.userRepository.save(userFound);
   }
 }
